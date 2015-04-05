@@ -58,11 +58,40 @@ static char* strncpy0(char* dest, const char* src, size_t size)
     return dest;
 }
 
-/* See documentation in header file. */
-int ini_parse_file(FILE* file,
-                   int (*handler)(void*, const char*, const char*,
-                                  const char*),
-                   void* user)
+/* Implementation of fgetc() that works on a buffer instead of a stream. */
+static int fgetc_from_buf(void** stream)
+{
+    char* cs = (char*)*stream;
+    int c = cs[0];
+    if (c != '\0')
+        *stream = cs + 1;
+    return c;
+}
+
+/* Implementation of fgets() that works on a buffer instead of a stream.
+   It's just a modified copy of the fgets() sample implementation from K&R. */
+static char* fgets_from_buf(char* line, int num, void** stream)
+{
+    int c = '\0';
+    char* cs = line;
+    while (--num > 0 && ((c = fgetc_from_buf(stream)) != '\0'))
+        if ((*cs++ = (char)c) == '\n')
+            break;
+    *cs = '\0';
+    return (cs == line) ? NULL : line;
+}
+
+/* Wrapper that forwards its arguments to the C library fgets() function. */
+static char* fgets_wrapper(char* line, int num, void** stream)
+{
+    return fgets(line, num, (FILE*)*stream);
+}
+
+static int ini_parse_lines(char* (*next_line)(char* str, int num, void** stream),
+                           void* stream,
+                           int (*handler)(void*, const char*, const char*,
+                                          const char*),
+                           void* user)
 {
     /* Uses a fair bit of stack (use heap instead if you need to) */
 #if INI_USE_STACK
@@ -88,7 +117,7 @@ int ini_parse_file(FILE* file,
 #endif
 
     /* Scan through file line by line */
-    while (fgets(line, INI_MAX_LINE, file) != NULL) {
+    while (next_line(line, INI_MAX_LINE, &stream) != NULL) {
         lineno++;
 
         start = line;
@@ -162,6 +191,24 @@ int ini_parse_file(FILE* file,
 #endif
 
     return error;
+}
+
+/* See documentation in header file. */
+int ini_parse_buf(const char* str,
+                  int(*handler)(void*, const char*, const char*,
+                                const char*),
+                  void* user)
+{
+    return ini_parse_lines(fgets_from_buf, (void*)str, handler, user);
+}
+
+/* See documentation in header file. */
+int ini_parse_file(FILE* file,
+                   int(*handler)(void*, const char*, const char*,
+                                 const char*),
+                   void* user)
+{
+    return ini_parse_lines(fgets_wrapper, file, handler, user);
 }
 
 /* See documentation in header file. */

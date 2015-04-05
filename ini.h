@@ -42,6 +42,13 @@ int ini_parse_file(FILE* file,
                                   const char* name, const char* value),
                    void* user);
 
+/* Same as ini_parse_file(), but operates on a string buffer instead of
+   filename. Works only with Unix-like line endings ('\n'). */
+int ini_parse_buf(const char* buf,
+                  int (*handler)(void* user, const char* section,
+                                 const char* name, const char* value),
+                  void* user);
+
 /* Nonzero to allow multi-line value parsing, in the style of Python's
    ConfigParser. If allowed, ini_parse() will call the handler with the same
    name for each subsequent line parsed. */
